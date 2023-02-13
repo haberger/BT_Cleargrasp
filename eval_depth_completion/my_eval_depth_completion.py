@@ -216,7 +216,7 @@ def main(config, CONFIG_FILE_PATH):
         sq_rel_mean += metrics['sq_rel']
 
         # Save Results of Depth Completion
-        error_output_depth, error_filtered_output_depth = depthcomplete.my_store_depth_completion_outputs(
+        error_output_depth, error_filtered_output_depth = depthcomplete.store_depth_completion_outputs(
             root_dir=results_dir,
             files_prefix=i,
             min_depth=config.depthVisualization.minDepth,
@@ -264,12 +264,12 @@ def write_config(path, intr):
 def eval_script(args):
     #xres, yres, fx, fy, cx,cy
     data = np.array([1280, 720, 909.9260864, 907.9168701, 643.5625, 349.0171814])
-    data = data / 20.0
+    data = data / 2
 
     path = args.configFile
 
 
-    for i in range(20, 22):
+    for i in range(1,2):
         data *= i
         write_config(path, data)
         print(data)
@@ -293,7 +293,7 @@ if __name__ == '__main__':
     sys.exit()
 
 
-    config, CONFIG_FILE_PATH = load_config(args)
+    # config, CONFIG_FILE_PATH = load_config(args)
 
 
-    main(config, CONFIG_FILE_PATH)
+    # main(config, CONFIG_FILE_PATH)
