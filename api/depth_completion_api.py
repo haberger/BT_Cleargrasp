@@ -119,7 +119,7 @@ class DepthToDepthCompletion(object):
             'folder-name': 'input-point-cloud'
         },
         'output-depth': {
-            'postfix': '-output-depth.exr',
+            'postfix': '-output-depth.png',
             'folder-name': 'output-depth'
         },
         'output-point-cloud': {
@@ -182,7 +182,11 @@ class DepthToDepthCompletion(object):
             max_depth=3.0,
             tmp_dir=None,
     ):
-
+        print(torch.cuda.is_available())
+        print(torch.cuda.device_count())
+        print(torch.cuda.current_device())
+        print(torch.cuda.device(0))
+        print(torch.cuda.get_device_name(0))
         self.depth2depthExecutable = depth2depthExecutable
         self.outputImgHeight = outputImgHeight
         self.outputImgWidth = outputImgWidth
@@ -917,3 +921,146 @@ class DepthToDepthCompletion(object):
             'mae': round(mae.item(), 5),
         }
         return measures
+
+    def my_store_depth_completion_outputs(self, root_dir, files_prefix, min_depth=0.0, max_depth=1.5):
+        """Writes the outputs of depth completion to files
+        It stores:
+            - Resized Orig Input Depth Image
+            - Point cloud of orig input depth
+            - Input Depth Image - The orig input depth modified by chosen method
+            - Point cloud of input depth image
+            - Output Depth Image
+            - Point cloud of output depth
+            - Point cloud of ground truth data, colored in surface normals estimation
+            # - Filtered Depth Image
+            # - Point cloud of filtered output depth
+            - Results Viz: A collage of the results of depth completion, including visualization of predictions of
+                           surface normals and outlines.
+
+        Args:
+            root_dir (str): Path to dir to store the data
+            files_prefix (int): Prefix to add to the file names
+            min_depth (float): Min depth for visualization of depth images in results (in meters)
+            max_depth (float): Max depth for visualization of depth images in results (in meters)
+            mask_valid_region (numpy.ndarray): A mask of the valid regions in depth image, that has been used
+                to calc the metric.
+
+        Returns:
+            float32: Mean Error on reconstructed output depth (only in case of Synthetic data, where input depth is ground truth)
+            float32: Mean Error on reconstructed filtered output depth (only in case of Synthetic data, where input depth is ground truth)
+        """
+
+        # Create dirs
+        orig_input_depth_dir = os.path.join(root_dir, self.FOLDER_MAP['orig-input-depth']['folder-name'])
+        input_depth_dir = os.path.join(root_dir, self.FOLDER_MAP['input-depth']['folder-name'])
+        output_depth_dir = os.path.join(root_dir, self.FOLDER_MAP['output-depth']['folder-name'])
+        results_viz_dir = os.path.join(root_dir, self.FOLDER_MAP['result-viz']['folder-name'])
+        masks_dir = os.path.join(root_dir, self.FOLDER_MAP['masks']['folder-name'])
+        normals_dir = os.path.join(root_dir, self.FOLDER_MAP['normals']['folder-name'])
+        outlines_dir = os.path.join(root_dir, self.FOLDER_MAP['outlines']['folder-name'])
+        input_image_dir = os.path.join(root_dir, self.FOLDER_MAP['input-image']['folder-name'])
+        gt_depth_dir = os.path.join(root_dir, self.FOLDER_MAP['gt-depth']['folder-name'])
+
+        dir_list = [os.path.join(root_dir, self.FOLDER_MAP[key]['folder-name']) for key in self.FOLDER_MAP]
+        for dirname in dir_list:
+            try:
+                os.mkdir(dirname)
+            except OSError as exc:
+                if exc.errno != errno.EEXIST:
+                    raise
+                pass
+
+        # Save Input Image
+        input_image_filename = '{:09d}'.format(files_prefix) + self.FOLDER_MAP['input-image']['postfix']
+        input_image_filename = os.path.join(input_image_dir, input_image_filename)
+        imageio.imwrite(input_image_filename, self.input_image)
+
+        output_depth_filename = '{:09d}'.format(files_prefix) + self.FOLDER_MAP['output-depth']['postfix']
+        output_depth_filename = os.path.join(output_depth_dir, output_depth_filename)
+        print(output_depth_filename)
+        print(type((self.output_depth * 1000).astype(np.uint16)))
+        imageio.imwrite(output_depth_filename, (self.output_depth * 1000).astype(np.uint16))
+
+        # Store Masks
+        mask_filename = '{:09d}'.format(files_prefix) + self.FOLDER_MAP['masks']['postfix']
+        mask_filename = os.path.join(masks_dir, mask_filename)
+        imageio.imwrite(mask_filename, self.mask_predicted)
+
+        # Store Normals
+        normal_filename = '{:09d}'.format(files_prefix) + self.FOLDER_MAP['normals']['postfix']
+        normal_filename = os.path.join(normals_dir, normal_filename)
+        imageio.imwrite(normal_filename, self.surface_normals_rgb)
+
+        # Store Outlines
+        outline_filename = '{:09d}'.format(files_prefix) + self.FOLDER_MAP['outlines']['postfix']
+        outline_filename = os.path.join(outlines_dir, outline_filename)
+        imageio.imwrite(outline_filename, self.occlusion_weight_rgb)
+
+        # STORE COLLAGE OF RESULTS - RGB IMAGE, SURFACE NORMALS, OCCLUSION WEIGHTS, DEPTH IMAGES
+        # create RGB visualization  of depth images
+        COLOR_MAP = cv2.COLORMAP_JET
+        input_depth_rgb = utils.depth2rgb(self.input_depth,
+                                          min_depth=min_depth,
+                                          max_depth=max_depth,
+                                          color_mode=COLOR_MAP)
+        orig_input_depth_rgb = utils.depth2rgb(self.orig_input_depth,
+                                               min_depth=min_depth,
+                                               max_depth=max_depth,
+                                               color_mode=COLOR_MAP)
+        output_depth_rgb = utils.depth2rgb(self.output_depth,
+                                           min_depth=min_depth,
+                                           max_depth=max_depth,
+                                           color_mode=COLOR_MAP)
+        gt_depth_rgb = utils.depth2rgb(self.depth_gt, min_depth=min_depth, max_depth=max_depth, color_mode=COLOR_MAP)
+
+        # Store input-output depth RGB
+        gt_depth_filename = '{:09d}'.format(files_prefix) + '-gt-depth-rgb.png'
+        gt_depth_filename = os.path.join(gt_depth_dir, gt_depth_filename)
+        imageio.imwrite(gt_depth_filename, gt_depth_rgb)
+        input_depth_filename = '{:09d}'.format(files_prefix) + '-input-depth-rgb.png'
+        input_depth_filename = os.path.join(orig_input_depth_dir, input_depth_filename)
+        imageio.imwrite(input_depth_filename, orig_input_depth_rgb)
+        input_depth_filename = '{:09d}'.format(files_prefix) + '-modified-input-depth-rgb.png'
+        input_depth_filename = os.path.join(input_depth_dir, input_depth_filename)
+        imageio.imwrite(input_depth_filename, input_depth_rgb)
+        output_depth_filename = '{:09d}'.format(files_prefix) + '-output-depth-rgb.png'
+        output_depth_filename = os.path.join(output_depth_dir, output_depth_filename)
+        imageio.imwrite(output_depth_filename, output_depth_rgb)
+
+        # Calculate error in output depth in meters (only on pixels that were 0.0 in input depth)
+        DEPTH_SCALING_M_TO_CM = 100
+        error_output_depth = np.abs(self.output_depth - self.orig_input_depth) * DEPTH_SCALING_M_TO_CM
+        mask = (self.input_depth != 0.0)
+        error_output_depth = np.ma.masked_array(error_output_depth, mask=mask)
+        error_output_depth = round(error_output_depth.mean(), 4)
+        error_filtered_output_depth = np.abs(self.filtered_output_depth - self.orig_input_depth) * DEPTH_SCALING_M_TO_CM
+        error_filtered_output_depth = np.ma.masked_array(error_filtered_output_depth, mask=mask)
+        error_filtered_output_depth = round(error_filtered_output_depth.mean(), 4)
+
+        # Write error onto output depth rgb image
+        # font = cv2.FONT_HERSHEY_SIMPLEX
+        # cv2.putText(output_depth_rgb, 'Error: {:.2f}cm'.format(error_output_depth), (120, 270), font, 1,
+        #             (255, 255, 255), 1, cv2.LINE_AA)
+        # cv2.putText(filtered_output_depth_rgb, 'Error: {:.2f}cm'.format(error_filtered_output_depth), (120, 270), font,
+        #             1, (255, 255, 255), 1, cv2.LINE_AA)
+
+        # Overlay Mask on Img
+        mask_rgb = self.input_image.copy()
+        mask_rgb[self.mask_predicted > 0, 0] = 255
+        mask_rgb[self.outlines_rgb[:, :, 1] > 0, 1] = 255
+        masked_img = cv2.addWeighted(mask_rgb, 0.6, self.input_image, 0.4, 0)
+
+        mask_valid_region_3d = np.stack([self.mask_valid_region] * 3, axis=2)  # Ground truth mask - invalid depth pixels
+
+        # Create Vizualization of all the results
+        grid_image1 = np.concatenate(
+            (self.input_image, self.surface_normals_rgb, self.outlines_rgb, self.occlusion_weight_rgb, masked_img), 1)
+        grid_image2 = np.concatenate(
+            (orig_input_depth_rgb, input_depth_rgb, output_depth_rgb, gt_depth_rgb, mask_valid_region_3d), 1)
+        grid_image = np.concatenate((grid_image1, grid_image2), 0)
+
+        path_result_viz = os.path.join(results_viz_dir,
+                                       '{:09d}'.format(files_prefix) + self.FOLDER_MAP['result-viz']['postfix'])
+        imageio.imwrite(path_result_viz, grid_image)
+
+        return error_output_depth, error_filtered_output_depth
