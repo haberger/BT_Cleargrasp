@@ -24,3 +24,4 @@ changed to version opencv-python==4.7.0.68
 conda install pytorch torchvision torchaudio pytorch-cuda=11.6 -c pytorch -c nvidia
 to install all the pytroch shit
 
+pip install requirenments.txt
