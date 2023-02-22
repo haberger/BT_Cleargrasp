@@ -100,7 +100,9 @@ def format_gt(img, config):
     img = img * 0.001
     img = np.float32(img)
     img = cv2.resize(img, (outputImgWidth, outputImgHeight), interpolation=cv2.INTER_NEAREST)
-    img[img>1] = 1
+    print(outputImgWidth)
+    print(outputImgHeight)
+    #img[img>1.5] = 1.5
     # img[np.isnan(img)] = 0
     # img[np.isinf(img)] = 0
     return img
@@ -108,7 +110,9 @@ def format_gt(img, config):
 def format_cg_depth(img):
     img = img * 0.001
     img = np.float32(img)
-    img[img>1] = 1
+    img = cv2.resize(img, (256, 144), interpolation=cv2.INTER_NEAREST)
+
+    #img[img>1.5] = 1.5
     return img
 
 def main(exp_dir, masked_error=False):
@@ -118,19 +122,22 @@ def main(exp_dir, masked_error=False):
     with open(CONFIG_FILE_PATH) as fd:
         config_yaml = yaml.safe_load(fd)
     config = AttrDict(config_yaml)
-
+    print(exp_dir)
     results_dir = os.path.join(exp_dir, 'metrics/')
+    results_dir = '/home/dalina/David/Uni/BachelorThesis/implicit_depth/src/results/pred_depth_gt_mask/metrics'
     depthcomplete = initialize_depth_complete(config, results_dir)
+    results_dir = '/home/dalina/David/Uni/BachelorThesis/implicit_depth/src/results/pred_depth_gt_mask/metrics'
 
-    depths_dir = os.path.join(exp_dir, '*-output-depth.png')
-    print(depths_dir)
+    # depths_dir = os.path.join(exp_dir, '*-output-depth.png')
+    # print(depths_dir)
     # gts = imread_collection(str(config.files.GT))
     # masks = imread_collection(str(config.files.masks))
-    depths = imread_collection(depths_dir)
+    # depths = imread_collection(depths_dir)
+
+    depths = imread_collection('/home/dalina/David/Uni/BachelorThesis/implicit_depth/src/results/pred_depth_gt_mask/*.png')
 
     gts = imread_collection('/home/dalina/David/Uni/BachelorThesis/Dataset/scenes/002/gt_background/*.png')
     masks = imread_collection('/home/dalina/David/Uni/BachelorThesis/Dataset/scenes/002/mask/*png')
-
 
     # print(depths)
     print('Total Num of depth_files:', len(depths))
@@ -139,9 +146,10 @@ def main(exp_dir, masked_error=False):
 
 
     if masked_error:
-        csv_filename = 'masked_metrics.csv'
+        csv_filename = 'masked_input_gt_metrics.csv'
     else:
-        csv_filename = 'unmasked_metrics.csv'
+        csv_filename = 'unmasked_input_gt_metrics.csv'
+
     field_names = ["Image Num", "RMSE", "REL", "MAE", "Delta 1.25", "Delta 1.25^2", "Delta 1.25^3"]
     with open(os.path.join(results_dir, csv_filename), 'w') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=field_names, delimiter=',')
@@ -177,6 +185,13 @@ def main(exp_dir, masked_error=False):
 
         ###cleargrasp format
         cg_depth = format_cg_depth(cg_depth)
+
+        # cv2.imshow('img', depth_gt)
+        # cv2.waitKey(0)
+        # cv2.imshow('img', cg_depth)
+        # cv2.waitKey(0)
+        # cv2.imshow('img', mask_valid_region)
+        # cv2.waitKey(0)
 
         metrics = depthcomplete.compute_errors(depth_gt, cg_depth, mask_valid_region)
 
@@ -235,10 +250,11 @@ if __name__ == '__main__':
     # exps_dir = '/home/dalina/David/Uni/BachelorThesis/Dataset/scenes/002/cleargrasp/results/Cleargrasp_res_exp_masked_out'
     #exps_dir = '/home/dalina/David/Uni/BachelorThesis/Dataset/scenes/002/cleargrasp/results/Cleargrasp_res_exp_not_masked'
     #exps_dir = '/home/dalina/David/Uni/BachelorThesis/Dataset/scenes/014_only_canister/cleargrasp/results'
-    exps_dir = '/home/dalina/David/Uni/BachelorThesis/Dataset/scenes/002/transCG/results/clipped_min000_max015_unpainted'
+    exps_dir = '/home/dalina/David/Uni/BachelorThesis/Dataset/scenes/002'
     exps = sorted(os.listdir(exps_dir))
     for exp in exps:
         exp_dir = os.path.join(exps_dir, exp)
+        exp_dir = exps_dir
         main(exp_dir, masked_error=True)
         main(exp_dir, masked_error=False)
-
+        sys.exit()

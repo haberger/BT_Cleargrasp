@@ -162,10 +162,10 @@ def main(config, CONFIG_FILE_PATH):
     abs_rel_mean = 0.0
     mae_mean = 0.0
     sq_rel_mean = 0.0
-    print(len(rgb))
+    #print(len(rgb))
     for i in range(len(rgb)):
-        print(range(len(rgb)))
-        print(i)
+        #print(range(len(rgb)))
+        #print(i)
         color_img = format_rgb(rgb[i])
         input_depth = format_depth(depth[i])
 
@@ -189,7 +189,7 @@ def main(config, CONFIG_FILE_PATH):
         mask_valid_region = (depth_gt > 0)
         mask_valid_region = np.logical_and(mask_valid_region, seg_mask)
         mask_valid_region = (mask_valid_region.astype(np.uint8) * 255)
-
+        
         metrics = depthcomplete.compute_errors(depth_gt, output_depth, mask_valid_region)
 
         print('\nImage {:09d} / {}:'.format(i, len(rgb) - 1))
@@ -216,7 +216,7 @@ def main(config, CONFIG_FILE_PATH):
         sq_rel_mean += metrics['sq_rel']
 
         # Save Results of Depth Completion
-        error_output_depth, error_filtered_output_depth = depthcomplete.store_depth_completion_outputs(
+        error_output_depth, error_filtered_output_depth = depthcomplete.my_store_depth_completion_outputs(
             root_dir=results_dir,
             files_prefix=i,
             min_depth=config.depthVisualization.minDepth,
@@ -274,8 +274,8 @@ def eval_script(args):
         write_config(path, data)
         print(data)
         config, path = load_config(args)
-        print("start")
-        print(i)
+        #print("start")
+        #print(i)
         main(config, path)
         data = data / i
     sys.exit()
